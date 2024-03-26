@@ -5,17 +5,40 @@
 Tnode * insertNode(Tnode * head, int key);
 Tnode * rebalance(Tnode * ya, Tnode * child);
 void replaceNode(Tnode * n);
-Tnode * deleteNode(Tnode * head, int key, int * bShift);
+Tnode * deleteNode(Tnode * head, int key, int * bShift, int * deleted);
 
 void printPO(Tnode * n){
     if (n == NULL) {
         return;
     }
-    printf("%d\n", n -> key);
+    int children = 0;
+    if (n -> left != NULL){
+        children += 2;
+    }
+    if (n -> right != NULL){
+        children += 1;
+    }
+    printf("%d %d\n", n -> key, children);
     printPO(n -> left);
     printPO(n -> right);
 }
-
+void fprintPO(FILE * f, Tnode * n){
+    if (n == NULL){
+        return;
+    }
+    int children = 0;
+    if (n -> left != NULL){
+        children +=2;
+    }
+    if (n -> right != NULL){
+        children +=1;
+    }
+    int key = n -> key;
+    fwrite(&key, sizeof(int), 1, f);
+    fwrite(&children, sizeof(char), 1, f);
+    fprintPO(f, n -> left);
+    fprintPO(f, n -> right);
+}
 void freeTree(Tnode * head){
     if (head != NULL){
         freeTree(head -> left);
@@ -30,19 +53,22 @@ void buildTree(FILE * f_in, FILE * f_out){
     Tnode * head = NULL;
     while (fread(&key, sizeof(int), 1, f_in) && fread(&c, sizeof(char), 1, f_in)){
         if (c == 'i'){
-            printf("insert: %d\n", key);
             head = insertNode(head, key);
         }
         else if (c == 'd')
         {
-            printf("delete: %d\n", key);
-            int dummy;
-            head = deleteNode(head, key, &dummy);
+            int bShift = 0;
+            int deleted = 0;
+            head = deleteNode(head, key, &bShift, &deleted);
+            printPO(head);
 
+        }
+        else{
+            return;
         }
         
     }
-    printPO(head);
+    fprintPO(f_out, head);
     freeTree(head);
 }
 
@@ -84,7 +110,7 @@ Tnode * insertNode(Tnode * head, int key){
     }
     q = malloc(sizeof(Tnode));
     if (!q){
-        printf("Malloc error!");
+        fprintf(stderr, "Malloc error!");
         return NULL;
     }
     q -> left = NULL;
@@ -170,6 +196,7 @@ Tnode * insertNode(Tnode * head, int key){
                 child->balance = 0;
             }
             else
+            {
                 if (curr->balance == 1) // ori. left subtree of curr
                 {
                     ya->balance = -1; // contains q
@@ -181,6 +208,7 @@ Tnode * insertNode(Tnode * head, int key){
                     child->balance = 1;
                 }
                 curr->balance = 0; // new root is balanced
+            }
         }
         if ((ya->balance == -2) && (child->balance == 1))
         {    
@@ -225,40 +253,48 @@ Tnode * insertNode(Tnode * head, int key){
     }
 }
 
-Tnode * deleteNode(Tnode * head, int key, int * bShift){
-    if (head -> key == key){ // base case where head is node to be deleted
+Tnode * deleteNode(Tnode * head, int key, int * bShift, int * deleted){
+    if (head == NULL){
+        return NULL;
+    }
+    Tnode * child;
+    if (head -> key == key && *deleted == 0){ // base case where head is node to be deleted
         if (head -> left != NULL && head -> right != NULL) { // Two Child case
             replaceNode(head);
-            head = deleteNode(head, key, bShift);
-            return head;
+            head -> left = deleteNode(head -> left, key, bShift, deleted);
+            head -> balance += *bShift;
+            child = head -> left;
         }
         else if (head -> left == NULL && head -> right == NULL){ // No Child case
             free(head);
             *bShift = -1;
+            *deleted = 1;
             return NULL;
         }
         else //One Child Case
         {
+            child = head -> left == NULL ? head -> right : head -> left;
             *bShift = -1;
-            return head -> left == NULL ? head -> right : head -> left;
+            *deleted = 1;
+            free(head);
+            return child;
         }
     }
-
     //standard recursive case
-    Tnode * child;
     //int prevBal = head -> balance;
-    if (head -> key > key)
+    else if (head -> key > key)
     {
-        head -> left = deleteNode(head -> left, key, bShift);
+        head -> left = deleteNode(head -> left, key, bShift, deleted);
         head -> balance += *bShift;
         child = head -> left;
     }
     else if (head -> key < key)
     {
-        head -> right = deleteNode(head -> right, key, bShift);
+        head -> right = deleteNode(head -> right, key, bShift, deleted);
         head -> balance -= *bShift;
         child = head -> right;
     }
+
     if (head -> balance > 1 || head -> balance < 1){
         rebalance(head, child);
     }
@@ -269,9 +305,9 @@ Tnode * deleteNode(Tnode * head, int key, int * bShift){
 }
 
 void replaceNode(Tnode * n){
-    Tnode * target = n -> right;
-    while (n -> left != NULL){
-        n = n -> left;
+    Tnode * target = n -> left;
+    while (target -> right != NULL){
+        target = target -> right;
     }
     int temp = n -> key;
     n -> key = target -> key;
@@ -316,6 +352,7 @@ Tnode * rebalance(Tnode * ya, Tnode * child){
             child->balance = 0;
         }
         else
+        {
             if (curr->balance == 1) // ori. left subtree of curr
             {
                 ya->balance = -1; // contains q
@@ -326,7 +363,8 @@ Tnode * rebalance(Tnode * ya, Tnode * child){
                 ya->balance = 0; // contains q
                 child->balance = 1;
             }
-            curr->balance = 0; // new root is balanced
+        }
+        curr->balance = 0; // new root is balanced
     }
     if ((ya->balance == -2) && (child->balance == 1))
     {    
