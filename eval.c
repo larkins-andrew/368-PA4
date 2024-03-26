@@ -19,7 +19,7 @@ void evalTree(FILE * f){
     int isValid = 1;
     int height;
     getNode(f, &height, &isBST, &isHBT, &isValid);
-    printf("1,%d,%d\n", isBST, isHBT);
+    printf("%d,%d,%d\n", isValid, isBST, isHBT);
     // printPO(head);
 }
 
@@ -28,24 +28,24 @@ int getNode(FILE * f, int * height, int * isBST, int * isHBT, int * isValid){
     char c;
     if (!fread(&key, sizeof(int), 1, f) || !fread(&c, sizeof(char), 1, f)){
         *isValid = 0;
-        return NULL;
+        return 0;
     }
     int lHeight = 0, rHeight = 0;
     int childKey;
-    if (c & 0x2) {
+    if (c >= 2) {
         childKey = getNode(f, &lHeight, isBST, isHBT, isValid);
         if (childKey > key){
             *isBST = 0;
         }
     }
-    if (c & 0x1){
+    if (c % 2 == 1){
         childKey = getNode(f, &rHeight, isBST, isHBT, isValid);
         if (childKey < key){
             *isBST = 0;
         }
     }
-    *height = lHeight > rHeight ? lHeight : rHeight;
-    if (abs(lHeight - rHeight) > 2){
+    *height = lHeight > rHeight ? lHeight + 1 : rHeight + 1;
+    if (abs(lHeight - rHeight) > 1){
         *isHBT = 0;
     }
     if (key > HBT_MAX || key < HBT_MIN){
